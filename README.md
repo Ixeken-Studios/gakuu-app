@@ -5,6 +5,8 @@ An interactive, modular Android Live Wallpaper engine application offering real-
 [<img src="https://img.shields.io/badge/Download-Latest_Release-003171?style=for-the-badge&logo=android&logoColor=white" height="45">](https://github.com/Ixeken-Studios/gakuu-app/releases/latest)
 [<img src="https://img.shields.io/badge/License-MIT-6A994E?style=for-the-badge&logo=open-source-initiative&logoColor=white" height="45">](LICENSE)
 
+![Gakuu Feature Graphic](/fastlane/metadata/android/en-US/images/featureGraphic.png)
+
 ---
 
 ## ✨ Key Features

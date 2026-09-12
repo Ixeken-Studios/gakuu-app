@@ -1,0 +1,14 @@
+Gakuu es un motor modular e interactivo de fondos de pantalla animados (Live Wallpapers) para Android. Dale vida a tu pantalla de inicio y de bloqueo con física de partículas acelerada por hardware, juegos retro automáticos, carruseles de fotos dinámicos y personalización con Material 3 Expressive.
+
+Funciones:
+
+- Motores Nativos Interactivos: Amplia variedad de fondos en vivo que incluyen Partículas Flotantes, Lluvia Matrix, Red Plexus, Gradiente Líquido, Salto Estelar, Retro Vaporwave, Juego de la Vida de Conway, Enjambre Fluido, Aura Holográfica, Lluvia de Luces Bokeh, Quantum, Brisa Floral y Mosaicos de Patrones.
+- Juegos Retro Automáticos: Revive los clásicos con una simulación de Tetris que juega automáticamente de forma infinita en tu fondo de pantalla.
+- Carrusel de Medios: Configura listas de reproducción de fotos y videos con transiciones suaves, intervalos de cambio personalizables y programación por horario de día y noche.
+- Temas Dinámicos Material 3: 6 paletas de color cuidadosamente diseñadas (Ixeken Claro, Ixeken Oscuro, Cereza, Terroso, Amoled Negro Puro y Elegancia), además de soporte para colores dinámicos de Material You.
+- Tipografía y Escala Táctil: Elige entre fuentes de Google Fonts como GS Flex, Inter, Rubik, Ubuntu y Nunito con un control deslizante de tamaño en tiempo real.
+- Independencia de Pantalla de Bloqueo: Elige un fondo animado independiente para tu pantalla de bloqueo o mantenlo sincronizado con la pantalla de inicio.
+- Optimización de Batería y Rendimiento: Regulador inteligente para pantalla de bloqueo (limita a 1 FPS con la pantalla bloqueada), modo opcional a 30 FPS y reducción de consumo cuando el Ahorro de Batería de Android está activo.
+- Privacidad Total sin Conexión: Sin cuentas, sin anuncios, sin telemetría y sin rastreadores. Tus fotos, videos y configuraciones se procesan y almacenan exclusivamente en tu dispositivo.
+
+Desarrollada con Flutter, Kotlin y AndroidX Media3.

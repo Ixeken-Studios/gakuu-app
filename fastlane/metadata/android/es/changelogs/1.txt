@@ -1,0 +1,1 @@
+Lanzamiento inicial: 15 motores de fondos animados, carrusel de fotos y videos, temas Material 3, personalización de fuentes y optimizaciones de batería.

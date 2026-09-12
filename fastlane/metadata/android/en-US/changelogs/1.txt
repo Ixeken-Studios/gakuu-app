@@ -1,0 +1,1 @@
+Initial release: 15 interactive live wallpaper engines, photo/video carousels, Material 3 themes, font customization, and battery saver optimizations.

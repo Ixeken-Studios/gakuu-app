@@ -1,0 +1,14 @@
+Gakuu is an interactive, modular live wallpaper engine for Android. Bring your home and lock screens to life with hardware-accelerated particle physics, automated retro games, dynamic media carousels, and Material 3 Expressive personalization.
+
+Features:
+
+- Interactive Native Engines: A rich collection of live backgrounds including Floating Particles, Matrix Rain, Plexus Network, Liquid Gradient, Star Jump, Retro Vaporwave, Conway's Game of Life, Fluid Swarm, Holographic Aura, Bokeh Lights, Quantum, Floral Breeze, and Pattern mosaics.
+- Autonomous Retro Games: Relive the classics with an autonomous Tetris game playing endlessly directly on your wallpaper.
+- Media Carousel: Set up dynamic photo and video wallpaper playlists with smooth transitions, custom change intervals, and day/night schedule automation.
+- Material 3 Theming: 6 curated color palettes (Ixeken Light, Ixeken Dark, Cherry, Earthy, Amoled Pitch Black, and Elegance) plus Material You dynamic accent color syncing.
+- Typography & Scaling: Choose from Google Fonts like GS Flex, Inter, Rubik, Ubuntu, and Nunito with a real-time tactile font scaling slider.
+- Independent Lock Screen: Set a dedicated live wallpaper engine for your lock screen or keep it synced with your home screen.
+- Battery & Performance Optimization: Smart lock-screen regulator (caps rendering to 1 FPS when locked), optional 30 FPS battery saver mode, and automatic throttling when Android's Battery Saver is active.
+- 100% Offline & Private: No accounts, no ads, no telemetry, and no tracking. All your media and configurations stay strictly on your local device.
+
+Built with Flutter, Kotlin, and AndroidX Media3.
