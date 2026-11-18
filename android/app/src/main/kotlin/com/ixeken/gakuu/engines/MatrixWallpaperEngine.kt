@@ -12,15 +12,30 @@ class MatrixWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
     
     override val frameIntervalMs = 45L // ~22 FPS para movimiento cinemático clásico de Matrix
 
-    private val paint = Paint().apply {
+    private val headPaint = Paint().apply {
         isAntiAlias = true
         typeface = Typeface.MONOSPACE
+        textAlign = Paint.Align.CENTER
+        color = Color.WHITE
+        setShadowLayer(14f, 0f, 0f, 0xFF34D399.toInt())
     }
+
+    private val bodyPaint = Paint().apply {
+        isAntiAlias = true
+        typeface = Typeface.MONOSPACE
+        textAlign = Paint.Align.CENTER
+    }
+
+    private val singleCharBuffer = CharArray(1)
     
     private var cols = 0
     private var charSize = 40f
     private val chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ日ハミヒヘホマミムメモヤユヨラリルレロ".toCharArray()
     private val drops = mutableListOf<MatrixDrop>()
+
+    companion object {
+        private const val BG_COLOR = 0xFF020402.toInt()
+    }
     
     data class MatrixDrop(
         val x: Float,
@@ -39,7 +54,9 @@ class MatrixWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
         charSize = width.toFloat() / 25f // Fijar a 25 columnas para mejor densidad
         if (charSize < 32f) charSize = 32f
         
-        paint.textSize = charSize * 0.85f
+        val textSize = charSize * 0.85f
+        headPaint.textSize = textSize
+        bodyPaint.textSize = textSize
         cols = (width / charSize).toInt() + 1
         
         drops.clear()
@@ -79,10 +96,7 @@ class MatrixWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
 
     override fun onDraw(canvas: Canvas) {
         // Fondo negro profundo y sólido
-        canvas.drawColor(Color.parseColor("#020402"))
-        
-        paint.textAlign = Paint.Align.CENTER
-        val rowsCount = (canvas.height / charSize).toInt() + 2
+        canvas.drawColor(BG_COLOR)
         
         for (drop in drops) {
             // Dibujar el trail de abajo hacia arriba (cabeza a cola)
@@ -92,26 +106,29 @@ class MatrixWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
                 if (charYIdx < 0 || charYIdx >= drop.columnChars.size) continue
                 
                 val yPos = charYIdx * charSize + charSize
-                val char = drop.columnChars[charYIdx]
-                
-                // Opacidad en base a la distancia de la cabeza
-                val fraction = 1.0f - (j.toFloat() / drop.length.toFloat())
-                val alpha = (fraction * 255).toInt().coerceIn(0, 255)
+                singleCharBuffer[0] = drop.columnChars[charYIdx]
                 
                 if (j == 0) {
-                    // La cabeza es blanca brillante y brilla neón
-                    paint.color = Color.WHITE
-                    paint.setShadowLayer(14f, 0f, 0f, Color.parseColor("#34D399")) // Brillo verde brillante
+                    // La cabeza es blanca brillante con glow neón preconfigurado
+                    canvas.drawText(singleCharBuffer, 0, 1, drop.x, yPos, headPaint)
                 } else {
-                    // El cuerpo es verde degradado
-                    paint.color = Color.argb(alpha, 16, 185, 129) // Emerald-500
-                    paint.clearShadowLayer()
+                    // El cuerpo es verde degradado sin shadow layer switch
+                    val fraction = 1.0f - (j.toFloat() / drop.length.toFloat())
+                    val alpha = (fraction * 255).toInt().coerceIn(0, 255)
+                    bodyPaint.color = Color.argb(alpha, 16, 185, 129) // Emerald-500
+                    canvas.drawText(singleCharBuffer, 0, 1, drop.x, yPos, bodyPaint)
                 }
-                
-                canvas.drawText(char.toString(), drop.x, yPos, paint)
             }
         }
-        paint.clearShadowLayer()
+    }
+
+    override fun onTouchEvent(event: android.view.MotionEvent) {
+        if (event.action == android.view.MotionEvent.ACTION_DOWN || event.action == android.view.MotionEvent.ACTION_MOVE) {
+            if (charSize > 0f && drops.isNotEmpty()) {
+                val colIndex = (event.x / charSize).toInt().coerceIn(0, drops.lastIndex)
+                drops[colIndex].y = event.y / charSize
+            }
+        }
     }
 
     override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {

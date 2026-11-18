@@ -68,8 +68,15 @@ class ParticlesWallpaperEngine(context: Context) : BaseWallpaperEngine(context),
         }
     }
 
+    private val rotationMatrix = FloatArray(9)
+    private val orientation = FloatArray(3)
+
+    companion object {
+        private const val BG_COLOR = 0xFF0F0F1B.toInt()
+    }
+
     override fun onDraw(canvas: Canvas) {
-        canvas.drawColor(Color.parseColor("#0F0F1B"))
+        canvas.drawColor(BG_COLOR)
         
         canvas.save()
         if (isParallaxEnabled) {
@@ -81,6 +88,24 @@ class ParticlesWallpaperEngine(context: Context) : BaseWallpaperEngine(context),
             canvas.drawCircle(p.x, p.y, p.radius, paint)
         }
         canvas.restore()
+    }
+
+    override fun onTouchEvent(event: android.view.MotionEvent) {
+        if (event.action == android.view.MotionEvent.ACTION_DOWN || event.action == android.view.MotionEvent.ACTION_MOVE) {
+            val tx = event.x
+            val ty = event.y
+            for (p in particles) {
+                val dx = p.x - tx
+                val dy = p.y - ty
+                val distSq = dx * dx + dy * dy
+                if (distSq in 1f..90000f) { // 300px radius
+                    val dist = kotlin.math.sqrt(distSq)
+                    val force = (300f - dist) / 300f * 4f
+                    p.vx += (dx / dist) * force
+                    p.vy += (dy / dist) * force
+                }
+            }
+        }
     }
 
     override fun onVisibilityChanged(visible: Boolean) {
@@ -115,9 +140,7 @@ class ParticlesWallpaperEngine(context: Context) : BaseWallpaperEngine(context),
         var targetY = 0f
         
         if (event.sensor.type == Sensor.TYPE_ROTATION_VECTOR) {
-            val rotationMatrix = FloatArray(9)
             SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values)
-            val orientation = FloatArray(3)
             SensorManager.getOrientation(rotationMatrix, orientation)
             targetX = -orientation[2]
             targetY = -orientation[1]

@@ -43,14 +43,17 @@ class IxekenWallpaperService : WallpaperService() {
     inner class IxekenEngineHost : Engine() {
         private var activeEngine: IxekenWallpaperEngine? = null
         private lateinit var prefs: SharedPreferences
+        private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
         
+        private val reloadRunnable = Runnable {
+            loadEngine(surfaceHolder)
+        }
+
         private val settingsReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context?, intent: Intent?) {
                 if (intent?.action == ACTION_SETTINGS_CHANGED) {
-                    // Forzar recarga del motor en el hilo principal
-                    android.os.Handler(android.os.Looper.getMainLooper()).post {
-                        loadEngine(surfaceHolder)
-                    }
+                    mainHandler.removeCallbacks(reloadRunnable)
+                    mainHandler.postDelayed(reloadRunnable, 80)
                 }
             }
         }
@@ -63,7 +66,7 @@ class IxekenWallpaperService : WallpaperService() {
             // Registrar el receptor de mensajes de la App
             val filter = IntentFilter(ACTION_SETTINGS_CHANGED)
             if (android.os.Build.VERSION.SDK_INT >= 33) {
-                registerReceiver(settingsReceiver, filter, Context.RECEIVER_EXPORTED)
+                registerReceiver(settingsReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
             } else {
                 registerReceiver(settingsReceiver, filter)
             }
@@ -82,49 +85,56 @@ class IxekenWallpaperService : WallpaperService() {
                     }
                 }
             }
-            val keyguardManager = getSystemService(Context.KEYGUARD_SERVICE) as? android.app.KeyguardManager
-            return keyguardManager?.isKeyguardLocked == true
+            // Antes de API 34 Android no permite identificar qué host pertenece
+            // exclusivamente a la pantalla de bloqueo.
+            return false
         }
 
         private fun loadEngine(holder: SurfaceHolder) {
-            // 1. Limpieza profunda del motor anterior
-            activeEngine?.onVisibilityChanged(false)
-            activeEngine?.onDestroy()
-            activeEngine = null
-            
-            // 2. Leer nueva configuración
-            val isLock = isLockScreenOnly()
-            val engineKey = if (isLock) "selected_engine_lock" else "selected_engine"
-            var type = prefs.getString(engineKey, "same")
-            if (type.isNullOrEmpty() || type == "same") {
-                type = prefs.getString("selected_engine", "carousel")
-            }
-            
-            // 3. Instanciar nuevo motor
-            activeEngine = when (type) {
-                "carousel" -> CarouselWallpaperEngine(this@IxekenWallpaperService)
-                "particles" -> ParticlesWallpaperEngine(this@IxekenWallpaperService)
-                "tetris" -> TetrisWallpaperEngine(this@IxekenWallpaperService)
-                "matrix" -> MatrixWallpaperEngine(this@IxekenWallpaperService)
-                "plexus" -> PlexusWallpaperEngine(this@IxekenWallpaperService)
-                "liquid" -> LiquidGradientWallpaperEngine(this@IxekenWallpaperService)
-                "starfield" -> StarfieldWallpaperEngine(this@IxekenWallpaperService)
-                "vaporwave" -> VaporwaveWallpaperEngine(this@IxekenWallpaperService)
-                "conway" -> ConwayWallpaperEngine(this@IxekenWallpaperService)
-                "fluids" -> FluidSwarmWallpaperEngine(this@IxekenWallpaperService)
-                "pattern" -> PatternWallpaperEngine(this@IxekenWallpaperService)
-                "floral" -> FloralWallpaperEngine(this@IxekenWallpaperService)
-                "bokeh" -> BokehWallpaperEngine(this@IxekenWallpaperService)
-                "quantum" -> QuantumWallpaperEngine(this@IxekenWallpaperService)
-                "aura" -> AuraWallpaperEngine(this@IxekenWallpaperService)
-                else -> CarouselWallpaperEngine(this@IxekenWallpaperService)
-            }
-            
-            // 4. Inicializar y activar
-            activeEngine?.setEngineHost(this)
-            activeEngine?.onCreate(holder)
-            if (isVisible) {
-                activeEngine?.onVisibilityChanged(true)
+            try {
+                // 1. Limpieza profunda del motor anterior
+                try {
+                    activeEngine?.onVisibilityChanged(false)
+                    activeEngine?.onDestroy()
+                } catch (e: Exception) {}
+                activeEngine = null
+                
+                // 2. Leer nueva configuración
+                val isLock = isLockScreenOnly()
+                val engineKey = if (isLock) "selected_engine_lock" else "selected_engine"
+                var type = prefs.getString(engineKey, "same")
+                if (type.isNullOrEmpty() || type == "same") {
+                    type = prefs.getString("selected_engine", "carousel")
+                }
+                
+                // 3. Instanciar nuevo motor
+                activeEngine = when (type) {
+                    "carousel" -> CarouselWallpaperEngine(this@IxekenWallpaperService)
+                    "particles" -> ParticlesWallpaperEngine(this@IxekenWallpaperService)
+                    "tetris" -> TetrisWallpaperEngine(this@IxekenWallpaperService)
+                    "matrix" -> MatrixWallpaperEngine(this@IxekenWallpaperService)
+                    "plexus" -> PlexusWallpaperEngine(this@IxekenWallpaperService)
+                    "liquid" -> LiquidGradientWallpaperEngine(this@IxekenWallpaperService)
+                    "starfield" -> StarfieldWallpaperEngine(this@IxekenWallpaperService)
+                    "vaporwave" -> VaporwaveWallpaperEngine(this@IxekenWallpaperService)
+                    "conway" -> ConwayWallpaperEngine(this@IxekenWallpaperService)
+                    "fluids" -> FluidSwarmWallpaperEngine(this@IxekenWallpaperService)
+                    "pattern" -> PatternWallpaperEngine(this@IxekenWallpaperService)
+                    "floral" -> FloralWallpaperEngine(this@IxekenWallpaperService)
+                    "bokeh" -> BokehWallpaperEngine(this@IxekenWallpaperService)
+                    "quantum" -> QuantumWallpaperEngine(this@IxekenWallpaperService)
+                    "aura" -> AuraWallpaperEngine(this@IxekenWallpaperService)
+                    else -> CarouselWallpaperEngine(this@IxekenWallpaperService)
+                }
+                
+                // 4. Inicializar y activar
+                activeEngine?.setEngineHost(this)
+                activeEngine?.onCreate(holder)
+                if (isVisible) {
+                    activeEngine?.onVisibilityChanged(true)
+                }
+            } catch (e: Exception) {
+                // Guard against any engine initialization error
             }
         }
 
@@ -150,10 +160,14 @@ class IxekenWallpaperService : WallpaperService() {
         override fun onDestroy() {
             super.onDestroy()
             activeHosts.remove(this)
+            mainHandler.removeCallbacks(reloadRunnable)
             try {
                 unregisterReceiver(settingsReceiver)
             } catch (e: Exception) {}
-            activeEngine?.onDestroy()
+            try {
+                activeEngine?.onVisibilityChanged(false)
+                activeEngine?.onDestroy()
+            } catch (e: Exception) {}
             activeEngine = null
         }
     }

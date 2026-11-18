@@ -12,7 +12,32 @@ import kotlin.random.Random
 
 class TetrisWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
     
+    companion object {
+        private val RETRO_COLORS = intArrayOf(
+            Color.TRANSPARENT,
+            Color.parseColor("#9BBC0F"), Color.parseColor("#8BAC0F"),
+            Color.parseColor("#306230"), Color.parseColor("#0F380F"),
+            Color.parseColor("#8BAC0F"), Color.parseColor("#306230"),
+            Color.parseColor("#9BBC0F")
+        )
+        private val PASTEL_COLORS = intArrayOf(
+            Color.TRANSPARENT,
+            Color.parseColor("#FFB7B2"), Color.parseColor("#FFDAC1"),
+            Color.parseColor("#E2F0CB"), Color.parseColor("#B5EAD7"),
+            Color.parseColor("#C7CEEA"), Color.parseColor("#FFC6FF"),
+            Color.parseColor("#FF9AA2")
+        )
+        private val NEON_COLORS = intArrayOf(
+            Color.TRANSPARENT,
+            Color.parseColor("#00F0F0"), Color.parseColor("#3B82F6"),
+            Color.parseColor("#F59E0B"), Color.parseColor("#FBBF24"),
+            Color.parseColor("#10B981"), Color.parseColor("#8B5CF6"),
+            Color.parseColor("#EF4444")
+        )
+    }
+
     private val paint = Paint().apply { isAntiAlias = true }
+    private val bgPaint = Paint().apply { isAntiAlias = true }
     
     private val cols = 10
     private var rows = 20
@@ -227,13 +252,13 @@ class TetrisWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
         val isRetro = style == "retro"
         
         // Dibujar Fondo
-        val bgPaint = Paint().apply {
-            if (isRetro) {
-                color = Color.parseColor("#8BAC0F") // Fondo verde clásico Gameboy
-            } else {
-                shader = LinearGradient(0f, 0f, 0f, canvas.height.toFloat(), 
-                    Color.parseColor("#080810"), Color.parseColor("#121220"), Shader.TileMode.CLAMP)
-            }
+        if (isRetro) {
+            bgPaint.shader = null
+            bgPaint.color = Color.parseColor("#8BAC0F") // Fondo verde clásico Gameboy
+        } else {
+            val h = canvas.height.toFloat().coerceAtLeast(10f)
+            bgPaint.shader = LinearGradient(0f, 0f, 0f, h, 
+                Color.parseColor("#080810"), Color.parseColor("#121220"), Shader.TileMode.CLAMP)
         }
         canvas.drawRect(0f, 0f, canvas.width.toFloat(), canvas.height.toFloat(), bgPaint)
 
@@ -264,27 +289,9 @@ class TetrisWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
 
     private fun drawBlock(canvas: Canvas, x: Int, y: Int, colorIndex: Int, style: String, isCurrent: Boolean = false) {
         val colors = when(style) {
-            "retro" -> intArrayOf(
-                Color.TRANSPARENT,
-                Color.parseColor("#9BBC0F"), Color.parseColor("#8BAC0F"),
-                Color.parseColor("#306230"), Color.parseColor("#0F380F"),
-                Color.parseColor("#8BAC0F"), Color.parseColor("#306230"),
-                Color.parseColor("#9BBC0F")
-            )
-            "pastel" -> intArrayOf(
-                Color.TRANSPARENT,
-                Color.parseColor("#FFB7B2"), Color.parseColor("#FFDAC1"),
-                Color.parseColor("#E2F0CB"), Color.parseColor("#B5EAD7"),
-                Color.parseColor("#C7CEEA"), Color.parseColor("#FFC6FF"),
-                Color.parseColor("#FF9AA2")
-            )
-            else -> intArrayOf( // neon and outline
-                Color.TRANSPARENT,
-                Color.parseColor("#00F0F0"), Color.parseColor("#3B82F6"),
-                Color.parseColor("#F59E0B"), Color.parseColor("#FBBF24"),
-                Color.parseColor("#10B981"), Color.parseColor("#8B5CF6"),
-                Color.parseColor("#EF4444")
-            )
+            "retro" -> RETRO_COLORS
+            "pastel" -> PASTEL_COLORS
+            else -> NEON_COLORS
         }
         
         val color = colors[colorIndex.coerceIn(0, colors.size - 1)]
@@ -312,7 +319,7 @@ class TetrisWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
                 // Pastel Minimal: bloques suaves muy redondeados
                 paint.color = color
                 paint.style = Paint.Style.FILL
-                canvas.drawRoundRect(RectF(left, top, right, bottom), 8f, 8f, paint)
+                canvas.drawRoundRect(left, top, right, bottom, 8f, 8f, paint)
             }
             "outline" -> {
                 // Cyberpunk Outline: solo bordes de neón resplandecientes
@@ -320,7 +327,7 @@ class TetrisWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
                 paint.style = Paint.Style.STROKE
                 paint.strokeWidth = 3.5f
                 if (isCurrent) paint.setShadowLayer(10f, 0f, 0f, color)
-                canvas.drawRoundRect(RectF(left + 2, top + 2, right - 2, bottom - 2), 6f, 6f, paint)
+                canvas.drawRoundRect(left + 2, top + 2, right - 2, bottom - 2, 6f, 6f, paint)
                 paint.clearShadowLayer()
             }
             else -> {
@@ -328,12 +335,12 @@ class TetrisWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
                 paint.color = color
                 paint.style = Paint.Style.FILL
                 if (isCurrent) paint.setShadowLayer(14f, 0f, 0f, color)
-                canvas.drawRoundRect(RectF(left, top, right, bottom), 10f, 10f, paint)
+                canvas.drawRoundRect(left, top, right, bottom, 10f, 10f, paint)
                 paint.clearShadowLayer()
                 
                 paint.color = Color.WHITE
                 paint.alpha = 50
-                canvas.drawRoundRect(RectF(left + 2, top + 2, right - 2, top + 8), 3f, 3f, paint)
+                canvas.drawRoundRect(left + 2, top + 2, right - 2, top + 8, 3f, 3f, paint)
             }
         }
     }

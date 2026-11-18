@@ -98,9 +98,53 @@ class PatternWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
         }
     }
 
+    private val bmpPaint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val reusableDestRect = RectF()
+
+    private val trianglePath = Path().apply {
+        moveTo(0f, -0.4f)
+        lineTo(0.4f, 0.4f)
+        lineTo(-0.4f, 0.4f)
+        close()
+    }
+
+    private val starPath = Path().apply {
+        val innerR = 0.15f
+        val outerR = 0.4f
+        for (i in 0 until 10) {
+            val angle = (i * 36f - 90f) * Math.PI.toFloat() / 180f
+            val r = if (i % 2 == 0) outerR else innerR
+            val x = r * kotlin.math.cos(angle)
+            val y = r * kotlin.math.sin(angle)
+            if (i == 0) moveTo(x, y) else lineTo(x, y)
+        }
+        close()
+    }
+
+    private val heartPath = Path().apply {
+        val w = 0.8f
+        val h = 0.8f
+        moveTo(0f, h * 0.35f)
+        cubicTo(
+            -w * 0.5f, -h * 0.25f,
+            -w * 0.5f, -h * 0.7f,
+            0f, -h * 0.3f
+        )
+        cubicTo(
+            w * 0.5f, -h * 0.7f,
+            w * 0.5f, -h * 0.25f,
+            0f, h * 0.35f
+        )
+        close()
+    }
+
+    companion object {
+        private const val BG_COLOR = 0xFF0F0F1B.toInt()
+    }
+
     override fun onDraw(canvas: Canvas) {
         // Draw background color
-        canvas.drawColor(Color.parseColor("#0F0F1B"))
+        canvas.drawColor(BG_COLOR)
 
         val w = canvas.width.toFloat()
         val h = canvas.height.toFloat()
@@ -127,96 +171,61 @@ class PatternWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
                     val cy = py + cellSize / 2f
 
                     canvas.save()
+                    canvas.translate(cx, cy)
                     if (rotateEnabled) {
-                        canvas.translate(cx, cy)
                         canvas.rotate(rotationAngle)
-                        canvas.translate(-cx, -cy)
                     }
 
-                    drawSlot(canvas, iconKey, cx, cy, cellSize * 0.5f)
+                    drawSlot(canvas, iconKey, cellSize * 0.5f)
                     canvas.restore()
                 }
             }
         }
     }
 
-    private fun drawSlot(canvas: Canvas, iconKey: String, cx: Float, cy: Float, size: Float) {
+    private fun drawSlot(canvas: Canvas, iconKey: String, size: Float) {
         val cached = bitmapCache[iconKey]
         if (cached != null) {
             val imgW = cached.width.toFloat()
             val imgH = cached.height.toFloat()
             val imgAspect = imgW / imgH
-            var destW = size
-            var destH = size
+            val destW: Float
+            val destH: Float
             if (imgAspect > 1f) {
+                destW = size
                 destH = size / imgAspect
             } else {
                 destW = size * imgAspect
+                destH = size
             }
-            val rect = RectF(cx - destW / 2f, cy - destH / 2f, cx + destW / 2f, cy + destH / 2f)
-            val bmpPaint = Paint().apply { isAntiAlias = true }
-            canvas.drawBitmap(cached, null, rect, bmpPaint)
+            val halfW = destW / 2f
+            val halfH = destH / 2f
+            reusableDestRect.set(-halfW, -halfH, halfW, halfH)
+            canvas.drawBitmap(cached, null, reusableDestRect, bmpPaint)
         } else {
             // Draw generic shape fallback
-            drawGeometricShape(canvas, iconKey, cx, cy, size, paint)
+            drawGeometricShape(canvas, iconKey, size, paint)
         }
     }
 
-    private fun drawGeometricShape(canvas: Canvas, shape: String, cx: Float, cy: Float, size: Float, p: Paint) {
+    private fun drawGeometricShape(canvas: Canvas, shape: String, size: Float, p: Paint) {
         p.style = Paint.Style.STROKE
-        p.strokeWidth = size * 0.1f
+        p.strokeWidth = 0.1f
+        canvas.save()
+        canvas.scale(size, size)
         when (shape) {
-            "circle" -> canvas.drawCircle(cx, cy, size * 0.4f, p)
-            "square" -> canvas.drawRect(cx - size * 0.35f, cy - size * 0.35f, cx + size * 0.35f, cy + size * 0.35f, p)
-            "triangle" -> {
-                val path = Path().apply {
-                    moveTo(cx, cy - size * 0.4f)
-                    lineTo(cx + size * 0.4f, cy + size * 0.4f)
-                    lineTo(cx - size * 0.4f, cy + size * 0.4f)
-                    close()
-                }
-                canvas.drawPath(path, p)
-            }
+            "circle" -> canvas.drawCircle(0f, 0f, 0.4f, p)
+            "square" -> canvas.drawRect(-0.35f, -0.35f, 0.35f, 0.35f, p)
+            "triangle" -> canvas.drawPath(trianglePath, p)
             "cross" -> {
-                canvas.drawLine(cx - size * 0.3f, cy, cx + size * 0.3f, cy, p)
-                canvas.drawLine(cx, cy - size * 0.3f, cx, cy + size * 0.3f, p)
+                canvas.drawLine(-0.3f, 0f, 0.3f, 0f, p)
+                canvas.drawLine(0f, -0.3f, 0f, 0.3f, p)
             }
-            "star" -> {
-                val path = Path()
-                val innerR = size * 0.15f
-                val outerR = size * 0.4f
-                for (i in 0 until 10) {
-                    val angle = (i * 36f - 90f) * Math.PI.toFloat() / 180f
-                    val r = if (i % 2 == 0) outerR else innerR
-                    val x = cx + r * Math.cos(angle.toDouble()).toFloat()
-                    val y = cy + r * Math.sin(angle.toDouble()).toFloat()
-                    if (i == 0) path.moveTo(x, y) else path.lineTo(x, y)
-                }
-                path.close()
-                canvas.drawPath(path, p)
-            }
-            "heart" -> {
-                val path = Path()
-                val w = size * 0.8f
-                val h = size * 0.8f
-                path.moveTo(cx, cy + h * 0.35f)
-                path.cubicTo(
-                    cx - w * 0.5f, cy - h * 0.25f,
-                    cx - w * 0.5f, cy - h * 0.7f,
-                    cx, cy - h * 0.3f
-                )
-                path.cubicTo(
-                    cx + w * 0.5f, cy - h * 0.7f,
-                    cx + w * 0.5f, cy - h * 0.25f,
-                    cx, cy + h * 0.35f
-                )
-                path.close()
-                canvas.drawPath(path, p)
-            }
-            else -> {
-                canvas.drawCircle(cx, cy, size * 0.4f, p)
-            }
+            "star" -> canvas.drawPath(starPath, p)
+            "heart" -> canvas.drawPath(heartPath, p)
+            else -> canvas.drawCircle(0f, 0f, 0.4f, p)
         }
+        canvas.restore()
     }
 
     override fun onSurfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {

@@ -23,6 +23,19 @@ class FloralWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
         color = Color.argb(40, 255, 255, 255)
     }
 
+    private val petalPath = Path().apply {
+        moveTo(0f, -20f)
+        quadTo(20f, -10f, 10f, 20f)
+        quadTo(0f, 30f, -10f, 20f)
+        quadTo(-20f, -10f, 0f, -20f)
+        close()
+    }
+    
+    private val veinPath = Path().apply {
+        moveTo(0f, 20f)
+        quadTo(4f, 0f, 0f, -10f)
+    }
+
     private val petals = mutableListOf<Petal>()
     private val numPetals = 35
 
@@ -116,21 +129,8 @@ class FloralWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
 
             paint.color = p.color
             
-            // Build petal path
-            val path = Path().apply {
-                moveTo(0f, -20f)
-                quadTo(20f, -10f, 10f, 20f)
-                quadTo(0f, 30f, -10f, 20f)
-                quadTo(-20f, -10f, 0f, -20f)
-                close()
-            }
-            canvas.drawPath(path, paint)
-            
-            // Draw central vein
-            val veinPath = Path().apply {
-                moveTo(0f, 20f)
-                quadTo(4f, 0f, 0f, -10f)
-            }
+            // Draw cached petal path and vein
+            canvas.drawPath(petalPath, paint)
             canvas.drawPath(veinPath, veinPaint)
 
             canvas.restore()

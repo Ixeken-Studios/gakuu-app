@@ -10,7 +10,17 @@ import kotlin.random.Random
 
 class StarfieldWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
     
-    private val paint = Paint().apply { isAntiAlias = true }
+    private val trailPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+    }
+
+    private val pointPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.FILL
+    }
+
     private val stars = mutableListOf<Star>()
     private val numStars = 150
     
@@ -19,9 +29,22 @@ class StarfieldWallpaperEngine(context: Context) : BaseWallpaperEngine(context) 
     private val normalSpeed = 6f
     private val warpSpeed = 32f
 
+    private var touchX = 0f
+    private var touchY = 0f
+    private var smoothCx = 0f
+    private var smoothCy = 0f
+
+    companion object {
+        private const val BG_COLOR = 0xFF030206.toInt()
+    }
+
     override fun onCreate(holder: SurfaceHolder) {
         super.onCreate(holder)
-        initStars(holder.surfaceFrame.width(), holder.surfaceFrame.height())
+        val w = holder.surfaceFrame.width()
+        val h = holder.surfaceFrame.height()
+        smoothCx = if (w > 0) w / 2f else 540f
+        smoothCy = if (h > 0) h / 2f else 960f
+        initStars(w, h)
     }
 
     private fun initStars(width: Int, height: Int) {
@@ -53,6 +76,11 @@ class StarfieldWallpaperEngine(context: Context) : BaseWallpaperEngine(context) 
         val w = currentHolder?.surfaceFrame?.width()?.toFloat() ?: 1080f
         val h = currentHolder?.surfaceFrame?.height()?.toFloat() ?: 1920f
 
+        val targetCx = if (isWarping) touchX else w / 2f
+        val targetCy = if (isWarping) touchY else h / 2f
+        smoothCx += (targetCx - smoothCx) * 0.08f
+        smoothCy += (targetCy - smoothCy) * 0.08f
+
         for (s in stars) {
             s.prevZ = s.z
             s.z -= currentSpeed
@@ -72,10 +100,11 @@ class StarfieldWallpaperEngine(context: Context) : BaseWallpaperEngine(context) 
         val h = canvas.height.toFloat()
         
         // Espacio negro profundo
-        canvas.drawColor(Color.parseColor("#030206"))
+        canvas.drawColor(BG_COLOR)
         
-        val cx = w / 2f
-        val cy = h / 2f
+        val cx = smoothCx
+        val cy = smoothCy
+        val isFast = currentSpeed > 8f
         
         for (s in stars) {
             // Proyección 3D a 2D para posición actual
@@ -95,24 +124,30 @@ class StarfieldWallpaperEngine(context: Context) : BaseWallpaperEngine(context) 
             
             // Ancho del rastro según velocidad y cercanía
             val thickness = (1.0f - (s.z / 1000f)) * 4.5f + 1f
-            paint.strokeWidth = thickness
-            paint.color = s.color
             
             // Si vamos rápido, dibuja líneas (rastro de movimiento/warp)
-            if (currentSpeed > 8f) {
-                canvas.drawLine(px2d, py2d, x2d, y2d, paint)
+            if (isFast) {
+                trailPaint.strokeWidth = thickness
+                trailPaint.color = s.color
+                canvas.drawLine(px2d, py2d, x2d, y2d, trailPaint)
             } else {
                 // Dibujar como puntos redondos en velocidad normal
-                paint.style = Paint.Style.FILL
-                canvas.drawCircle(x2d, y2d, thickness * 0.7f, paint)
+                pointPaint.color = s.color
+                canvas.drawCircle(x2d, y2d, thickness * 0.7f, pointPaint)
             }
         }
     }
 
     override fun onTouchEvent(event: MotionEvent) {
         when (event.action) {
-            MotionEvent.ACTION_DOWN -> isWarping = true
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> isWarping = false
+            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_MOVE -> {
+                isWarping = true
+                touchX = event.x
+                touchY = event.y
+            }
+            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                isWarping = false
+            }
         }
     }
 

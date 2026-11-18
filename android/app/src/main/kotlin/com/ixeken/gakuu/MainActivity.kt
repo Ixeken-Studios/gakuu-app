@@ -2,14 +2,24 @@ package com.ixeken.gakuu
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import java.io.File
+import java.io.FileOutputStream
+import java.util.UUID
+import java.util.concurrent.Executors
 
 class MainActivity: FlutterActivity() {
+    private val ioExecutor = Executors.newSingleThreadExecutor()
+
+    override fun onDestroy() {
+        ioExecutor.shutdownNow()
+        super.onDestroy()
+    }
     private val CHANNEL = "com.ixeken.wallpaper/media"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
@@ -24,6 +34,8 @@ class MainActivity: FlutterActivity() {
                     val playlist = call.argument<List<String>>("playlist")
                     val type = call.argument<String>("type") ?: "general"
                     if (playlist != null) {
+                      ioExecutor.execute {
+                        try {
                         val storageDir = File(filesDir, "wallpapers/$type")
                         if (!storageDir.exists()) {
                             storageDir.mkdirs()
@@ -43,7 +55,11 @@ class MainActivity: FlutterActivity() {
                                 continue
                             }
                             
-                            val destFile = File(storageDir, originalFile.name)
+                            val destFile = if (originalFile.parentFile?.canonicalFile == storageDir.canonicalFile) {
+                                originalFile
+                            } else {
+                                File(storageDir, UUID.randomUUID().toString() + '_' + originalFile.name)
+                            }
                             
                             if (originalFile.absolutePath != destFile.absolutePath) {
                                 try {
@@ -82,11 +98,17 @@ class MainActivity: FlutterActivity() {
                         sendBroadcast(intent)
                         
                         if (failedPaths.isNotEmpty()) {
-                            MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
-                                .invokeMethod("onPlaylistError", failedPaths)
+                            runOnUiThread {
+                                MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+                                    .invokeMethod("onPlaylistError", failedPaths)
+                            }
                         }
                         
-                        result.success(copiedPaths)
+                        runOnUiThread { result.success(copiedPaths) }
+                        } catch (e: Exception) {
+                            runOnUiThread { result.error("PLAYLIST_ERROR", e.message, null) }
+                        }
+                      }
                     } else {
                         result.error("INVALID_ARGS", "Playlist is null", null)
                     }
@@ -94,6 +116,7 @@ class MainActivity: FlutterActivity() {
                 "applySingleWallpaper" -> {
                     val path = call.argument<String>("path")
                     if (path != null) {
+                      ioExecutor.execute copy@ {
                         val originalFile = File(path)
                         if (originalFile.exists()) {
                             if (isValidImageOrVideo(originalFile)) {
@@ -101,7 +124,11 @@ class MainActivity: FlutterActivity() {
                                 if (!storageDir.exists()) {
                                     storageDir.mkdirs()
                                 }
-                                val destFile = File(storageDir, originalFile.name)
+                                val destFile = if (originalFile.parentFile?.canonicalFile == storageDir.canonicalFile) {
+                                    originalFile
+                                } else {
+                                    File(storageDir, UUID.randomUUID().toString() + '_' + originalFile.name)
+                                }
                                 if (originalFile.absolutePath != destFile.absolutePath) {
                                     try {
                                         originalFile.inputStream().use { input ->
@@ -111,8 +138,8 @@ class MainActivity: FlutterActivity() {
                                         }
                                     } catch (e: Exception) {
                                         e.printStackTrace()
-                                        result.error("COPY_FAILED", "Failed to copy file", e.message)
-                                        return@setMethodCallHandler
+                                        runOnUiThread { result.error("COPY_FAILED", "Failed to copy file", e.message) }
+                                        return@copy
                                     }
                                 }
                                 
@@ -128,13 +155,14 @@ class MainActivity: FlutterActivity() {
                                 intent.setPackage(packageName)
                                 sendBroadcast(intent)
                                 
-                                result.success(true)
+                                runOnUiThread { result.success(true) }
                             } else {
-                                result.error("INVALID_FILE", "File is corrupt or not supported", null)
+                                runOnUiThread { result.error("INVALID_FILE", "File is corrupt or not supported", null) }
                             }
                         } else {
-                            result.error("FILE_NOT_FOUND", "File does not exist", null)
+                            runOnUiThread { result.error("FILE_NOT_FOUND", "File does not exist", null) }
                         }
+                      }
                     } else {
                         result.error("INVALID_ARGS", "Path is null", null)
                     }
@@ -225,11 +253,179 @@ class MainActivity: FlutterActivity() {
                         wm.clear()
                         result.success(true)
                     } catch (e: Exception) {
-                        result.error("CLEAR_ERROR", e.message, null)
+                        e.printStackTrace()
+                        result.success(false)
                     }
                 }
                 "getAppDirectory" -> {
                     result.success(filesDir.absolutePath)
+                }
+                "getAppVersion" -> {
+                    val packageInfo = packageManager.getPackageInfo(packageName, 0)
+                    result.success(packageInfo.versionName ?: "0.0.0")
+                }
+                "cropAndProcessMedia" -> {
+                    val path = call.argument<String>("path")
+                    val cropX = call.argument<Double>("cropX") ?: 0.0
+                    val cropY = call.argument<Double>("cropY") ?: 0.0
+                    val cropWidth = call.argument<Double>("cropWidth") ?: 1.0
+                    val cropHeight = call.argument<Double>("cropHeight") ?: 1.0
+                    val type = call.argument<String>("type") ?: "general"
+                    
+                    if (path == null) {
+                        result.error("INVALID_ARGS", "Path is null", null)
+                        return@setMethodCallHandler
+                    }
+                    val originalFile = File(path)
+                    if (!originalFile.exists()) {
+                        result.error("FILE_NOT_FOUND", "Original file does not exist", null)
+                        return@setMethodCallHandler
+                    }
+                    
+                    val storageDir = File(filesDir, "wallpapers/$type")
+                    if (!storageDir.exists()) {
+                        storageDir.mkdirs()
+                    }
+                    
+                    val isVideo = originalFile.name.endsWith(".mp4", ignoreCase = true) ||
+                                  originalFile.name.endsWith(".mkv", ignoreCase = true) ||
+                                  originalFile.name.endsWith(".mov", ignoreCase = true) ||
+                                  originalFile.name.endsWith(".webm", ignoreCase = true)
+                                  
+                    if (originalFile.extension.equals("gif", ignoreCase = true)) {
+                        ioExecutor.execute {
+                            try {
+                                // BitmapFactory solo conservaría el primer frame. Para mantener
+                                // la animación, el GIF se copia sin recodificar.
+                                val destFile = File(storageDir, "media_${UUID.randomUUID()}.gif")
+                                originalFile.copyTo(destFile, overwrite = false)
+                                val list = addToPlaylist(destFile.absolutePath, type)
+                                runOnUiThread { result.success(list) }
+                            } catch (e: Exception) {
+                                runOnUiThread { result.error("GIF_COPY_ERROR", e.message, null) }
+                            }
+                        }
+                    } else if (isVideo) {
+                        val destFile = File(storageDir, "crop_${System.currentTimeMillis()}.mp4")
+                        
+                        // Media3 Crop normalized coordinates: [-1.0f, 1.0f]
+                        val media3Left = (-1.0f + 2.0f * cropX.toFloat()).coerceIn(-1.0f, 1.0f)
+                        val media3Right = (-1.0f + 2.0f * (cropX + cropWidth).toFloat()).coerceIn(-1.0f, 1.0f)
+                        val media3Top = (1.0f - 2.0f * cropY.toFloat()).coerceIn(-1.0f, 1.0f)
+                        val media3Bottom = (1.0f - 2.0f * (cropY + cropHeight).toFloat()).coerceIn(-1.0f, 1.0f)
+                        
+                        try {
+                            val cropEffect = androidx.media3.effect.Crop(media3Left, media3Right, media3Bottom, media3Top)
+                            val effects = androidx.media3.transformer.Effects(emptyList(), listOf(cropEffect))
+                            val editedMediaItem = androidx.media3.transformer.EditedMediaItem.Builder(
+                                androidx.media3.common.MediaItem.fromUri(android.net.Uri.fromFile(originalFile))
+                            )
+                                .setRemoveAudio(true)
+                                .setEffects(effects)
+                                .build()
+                                
+                            val transformer = androidx.media3.transformer.Transformer.Builder(this)
+                                .addListener(object : androidx.media3.transformer.Transformer.Listener {
+                                    override fun onCompleted(composition: androidx.media3.transformer.Composition, exportResult: androidx.media3.transformer.ExportResult) {
+                                        val key = when(type) {
+                                            "day" -> "playlist_day"
+                                            "night" -> "playlist_night"
+                                            else -> "playlist"
+                                        }
+                                        val currentPlaylist = prefs.getString(key, "") ?: ""
+                                        val list = if (currentPlaylist.isEmpty()) mutableListOf() else currentPlaylist.split("||").toMutableList()
+                                        list.add(destFile.absolutePath)
+                                        editor.putString(key, list.joinToString("||")).commit()
+                                        
+                                        performDiskCleanup()
+                                        val intent = Intent(IxekenWallpaperService.ACTION_SETTINGS_CHANGED)
+                                        intent.setPackage(packageName)
+                                        sendBroadcast(intent)
+                                        
+                                        result.success(list)
+                                    }
+                                    
+                                    override fun onError(
+                                        composition: androidx.media3.transformer.Composition,
+                                        exportResult: androidx.media3.transformer.ExportResult,
+                                        exportException: androidx.media3.transformer.ExportException
+                                    ) {
+                                        exportException.printStackTrace()
+                                        result.error("CROP_FAILED", exportException.message, null)
+                                    }
+                                })
+                                .build()
+                                
+                            transformer.start(editedMediaItem, destFile.absolutePath)
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            result.error("CROP_ERROR", e.message, null)
+                        }
+                    } else {
+                        // Image or GIF
+                      ioExecutor.execute crop@ {
+                        try {
+                            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            BitmapFactory.decodeFile(originalFile.absolutePath, options)
+                            val fullW = options.outWidth
+                            val fullH = options.outHeight
+                            
+                            if (fullW <= 0 || fullH <= 0) {
+                                runOnUiThread { result.error("INVALID_IMAGE", "Could not decode image bounds", null) }
+                                return@crop
+                            }
+
+                            var sampleSize = 1
+                            while (fullW / sampleSize > 2160 || fullH / sampleSize > 2160) {
+                                sampleSize *= 2
+                            }
+                            val decodeOptions = BitmapFactory.Options().apply { inSampleSize = sampleSize }
+                            val fullBitmap = BitmapFactory.decodeFile(originalFile.absolutePath, decodeOptions)
+                            if (fullBitmap != null) {
+                                val decodedW = fullBitmap.width
+                                val decodedH = fullBitmap.height
+                                val px = (cropX * decodedW).toInt().coerceIn(0, decodedW - 1)
+                                val py = (cropY * decodedH).toInt().coerceIn(0, decodedH - 1)
+                                val pw = (cropWidth * decodedW).toInt().coerceIn(1, decodedW - px)
+                                val ph = (cropHeight * decodedH).toInt().coerceIn(1, decodedH - py)
+                                val croppedBitmap = Bitmap.createBitmap(fullBitmap, px, py, pw, ph)
+                                val destFile = File(storageDir, "crop_${System.currentTimeMillis()}.png")
+                                FileOutputStream(destFile).use { out ->
+                                    if (!croppedBitmap.compress(Bitmap.CompressFormat.PNG, 100, out)) {
+                                        throw IllegalStateException("Failed to encode cropped image")
+                                    }
+                                    out.flush()
+                                }
+                                fullBitmap.recycle()
+                                if (croppedBitmap !== fullBitmap) {
+                                    croppedBitmap.recycle()
+                                }
+                                
+                                val key = when(type) {
+                                    "day" -> "playlist_day"
+                                    "night" -> "playlist_night"
+                                    else -> "playlist"
+                                }
+                                val currentPlaylist = prefs.getString(key, "") ?: ""
+                                val list = if (currentPlaylist.isEmpty()) mutableListOf() else currentPlaylist.split("||").toMutableList()
+                                list.add(destFile.absolutePath)
+                                editor.putString(key, list.joinToString("||")).commit()
+                                
+                                performDiskCleanup()
+                                val intent = Intent(IxekenWallpaperService.ACTION_SETTINGS_CHANGED)
+                                intent.setPackage(packageName)
+                                sendBroadcast(intent)
+                                
+                                runOnUiThread { result.success(list) }
+                            } else {
+                                runOnUiThread { result.error("DECODE_ERROR", "Failed to decode bitmap", null) }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            runOnUiThread { result.error("IMAGE_CROP_ERROR", e.message, null) }
+                        }
+                      }
+                    }
                 }
                 else -> {
                     result.notImplemented()
@@ -238,10 +434,27 @@ class MainActivity: FlutterActivity() {
         }
     }
 
+    private fun addToPlaylist(path: String, type: String): List<String> {
+        val prefs = getSharedPreferences("WallpaperPrefs", Context.MODE_PRIVATE)
+        val key = when(type) {
+            "day" -> "playlist_day"
+            "night" -> "playlist_night"
+            else -> "playlist"
+        }
+        val currentPlaylist = prefs.getString(key, "") ?: ""
+        val list = if (currentPlaylist.isEmpty()) mutableListOf() else currentPlaylist.split("||").toMutableList()
+        list.add(path)
+        prefs.edit().putString(key, list.joinToString("||")).commit()
+        performDiskCleanup()
+        val intent = Intent(IxekenWallpaperService.ACTION_SETTINGS_CHANGED).setPackage(packageName)
+        sendBroadcast(intent)
+        return list
+    }
+
     private fun isValidImageOrVideo(file: File): Boolean {
         if (!file.exists() || file.length() == 0L) return false
         val path = file.absolutePath
-        return if (path.endsWith(".mp4", ignoreCase = true) || path.endsWith(".mkv", ignoreCase = true)) {
+        return if (path.endsWith(".mp4", ignoreCase = true) || path.endsWith(".mkv", ignoreCase = true) || path.endsWith(".mov", ignoreCase = true) || path.endsWith(".webm", ignoreCase = true)) {
             val retriever = MediaMetadataRetriever()
             try {
                 retriever.setDataSource(path)

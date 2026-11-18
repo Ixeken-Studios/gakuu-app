@@ -114,27 +114,20 @@ class ConwayWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
         // Limpiar lienzo negro estilo matriz de datos cibernética
         canvas.drawColor(Color.parseColor("#090712"))
         
-        // Células de neón cian
-        paint.reset()
-        paint.isAntiAlias = true
         paint.color = Color.parseColor("#00FFCC") // Cian neón
         paint.style = Paint.Style.FILL
-        paint.setShadowLayer(8f, 0f, 0f, Color.parseColor("#00FFCC"))
         
         for (y in 0 until rows) {
             for (x in 0 until cols) {
                 if (grid[y][x]) {
-                    val rect = RectF(
-                        x * cellSize + 2f,
-                        y * cellSize + 2f,
-                        (x + 1) * cellSize - 2f,
-                        (y + 1) * cellSize - 2f
-                    )
-                    canvas.drawRoundRect(rect, 4f, 4f, paint)
+                    val left = x * cellSize + 2f
+                    val top = y * cellSize + 2f
+                    val right = (x + 1) * cellSize - 2f
+                    val bottom = (y + 1) * cellSize - 2f
+                    canvas.drawRoundRect(left, top, right, bottom, 4f, 4f, paint)
                 }
             }
         }
-        paint.clearShadowLayer()
     }
 
     override fun onTouchEvent(event: MotionEvent) {

@@ -19,5 +19,11 @@ void main() {
       expect(GitHubUpdateService.compareVersions('1.1.0', '1.0.0'), equals(1));
       expect(GitHubUpdateService.compareVersions('v2.0.0', 'v1.9.9'), equals(1));
     });
+
+    test('Semantic prerelease versions are ordered correctly', () {
+      expect(GitHubUpdateService.compareVersions('1.2.0-beta.1', '1.2.0'), equals(-1));
+      expect(GitHubUpdateService.compareVersions('1.2.0', '1.2.0-rc.1'), equals(1));
+      expect(GitHubUpdateService.compareVersions('1.2.0-beta.2', '1.2.0-beta.10'), equals(-1));
+    });
   });
 }

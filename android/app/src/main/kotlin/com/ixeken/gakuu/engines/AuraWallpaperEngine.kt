@@ -23,6 +23,12 @@ class AuraWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
     private var touchX: Float? = null
     private var touchY: Float? = null
 
+    private val shaderMatrix = Matrix()
+
+    companion object {
+        private const val BG_COLOR = 0xFF07050E.toInt()
+    }
+
     override fun onCreate(holder: SurfaceHolder) {
         super.onCreate(holder)
         initBlobs(holder.surfaceFrame.width(), holder.surfaceFrame.height())
@@ -40,7 +46,19 @@ class AuraWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
             Color.parseColor("#FFFFD700")  // Vibrant gold
         )
 
+        val stops = floatArrayOf(0.0f, 0.5f, 1.0f)
+
         repeat(numBlobs) {
+            val c = colors[Random.nextInt(colors.size)]
+            val argbCore = Color.argb((0.35f * 255).toInt(), Color.red(c), Color.green(c), Color.blue(c))
+            val argbMid = Color.argb((0.15f * 255).toInt(), Color.red(c), Color.green(c), Color.blue(c))
+            val shader = RadialGradient(
+                0f, 0f, 1f,
+                intArrayOf(argbCore, argbMid, Color.TRANSPARENT),
+                stops,
+                Shader.TileMode.CLAMP
+            )
+
             blobs.add(AuraBlob(
                 x = Random.nextFloat() * w,
                 y = Random.nextFloat() * h,
@@ -48,7 +66,8 @@ class AuraWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
                 vy = (Random.nextFloat() - 0.5f) * 1.5f,
                 radius = Random.nextFloat() * 250f + 300f, // Massive blobs
                 pulsePhase = Random.nextFloat() * 10f,
-                color = colors[Random.nextInt(colors.size)]
+                color = c,
+                shader = shader
             ))
         }
     }
@@ -99,21 +118,16 @@ class AuraWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
 
     override fun onDraw(canvas: Canvas) {
         // Holographic deep night canvas
-        canvas.drawColor(Color.parseColor("#07050E"))
+        canvas.drawColor(BG_COLOR)
 
         for (b in blobs) {
             val currentRadius = b.radius * (1.0f + sin(b.pulsePhase) * 0.08f)
 
-            val argbCore = Color.argb((0.35f * 255).toInt(), Color.red(b.color), Color.green(b.color), Color.blue(b.color))
-            val argbMid = Color.argb((0.15f * 255).toInt(), Color.red(b.color), Color.green(b.color), Color.blue(b.color))
-
-            val gradient = RadialGradient(
-                b.x, b.y, currentRadius,
-                intArrayOf(argbCore, argbMid, Color.TRANSPARENT),
-                floatArrayOf(0.0f, 0.5f, 1.0f),
-                Shader.TileMode.CLAMP
-            )
-            paint.shader = gradient
+            shaderMatrix.reset()
+            shaderMatrix.postScale(currentRadius, currentRadius)
+            shaderMatrix.postTranslate(b.x, b.y)
+            b.shader.setLocalMatrix(shaderMatrix)
+            paint.shader = b.shader
 
             canvas.drawCircle(b.x, b.y, currentRadius, paint)
         }
@@ -139,6 +153,7 @@ class AuraWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
         var vy: Float,
         val radius: Float,
         var pulsePhase: Float,
-        val color: Int
+        val color: Int,
+        val shader: RadialGradient
     )
 }

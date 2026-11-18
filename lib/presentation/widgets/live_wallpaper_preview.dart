@@ -758,6 +758,8 @@ class _LiveWallpaperPreviewState extends State<LiveWallpaperPreview> with Single
                       File(currentPath),
                       key: ValueKey<String>(currentPath),
                       fit: BoxFit.cover,
+                      cacheWidth: 1080,
+                      cacheHeight: 1920,
                       errorBuilder: (context, error, stackTrace) {
                         final isVideo = currentPath.toLowerCase().endsWith('.mp4') ||
                                         currentPath.toLowerCase().endsWith('.mov') ||

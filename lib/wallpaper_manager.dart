@@ -119,4 +119,31 @@ class WallpaperManager {
       return false;
     }
   }
+  /// Recorta y procesa un video o GIF según las coordenadas de encuadre normalizadas (0.0 a 1.0).
+  /// Guarda el archivo optimizado en el almacenamiento interno de la app
+  /// y lo añade a la playlist indicada ('general', 'day', 'night').
+  /// Retorna la lista actualizada de rutas de la playlist o null si ocurre un error.
+  static Future<List<String>?> cropAndProcessMedia({
+    required String filePath,
+    required double cropX,
+    required double cropY,
+    required double cropWidth,
+    required double cropHeight,
+    String type = 'general',
+  }) async {
+    try {
+      final List<dynamic>? result = await _channel.invokeMethod('cropAndProcessMedia', {
+        'path': filePath,
+        'cropX': cropX,
+        'cropY': cropY,
+        'cropWidth': cropWidth,
+        'cropHeight': cropHeight,
+        'type': type,
+      });
+      return result?.cast<String>();
+    } on PlatformException catch (e) {
+      debugPrint("Error al recortar y procesar medio: '${e.message}'.");
+      return null;
+    }
+  }
 }

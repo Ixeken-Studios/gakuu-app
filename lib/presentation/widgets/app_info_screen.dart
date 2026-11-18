@@ -14,6 +14,7 @@ class AppInfoScreen extends StatefulWidget {
 
 class _AppInfoScreenState extends State<AppInfoScreen> {
   bool _checkUpdateOnStart = false;
+  String _appVersion = '...';
 
   @override
   void initState() {
@@ -23,8 +24,11 @@ class _AppInfoScreenState extends State<AppInfoScreen> {
 
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
+    final appVersion = await GitHubUpdateService.getCurrentAppVersion();
+    if (!mounted) return;
     setState(() {
       _checkUpdateOnStart = prefs.getBool('check_update_on_start') ?? false;
+      _appVersion = appVersion;
     });
   }
 
@@ -134,7 +138,7 @@ class _AppInfoScreenState extends State<AppInfoScreen> {
         case UpToDateResult():
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(l.latestVersionMsg(GitHubUpdateService.currentAppVersion)),
+              content: Text(l.latestVersionMsg(_appVersion)),
               backgroundColor: primaryColor,
             ),
           );
@@ -346,7 +350,7 @@ class _AppInfoScreenState extends State<AppInfoScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            '${l.viewChangelog} v${GitHubUpdateService.currentAppVersion}',
+                            '${l.viewChangelog} v$_appVersion',
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               fontSize: 18,

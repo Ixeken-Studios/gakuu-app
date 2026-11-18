@@ -34,7 +34,7 @@ abstract class BaseWallpaperEngine(protected val context: Context) : IxekenWallp
                 }
 
                 val now = System.currentTimeMillis()
-                val targetInterval = frameIntervalMs
+                val targetInterval = if (isLockScreen()) 1000L else frameIntervalMs
                 if (now - lastFrameTimeMs >= targetInterval) {
                     lastFrameTimeMs = now
                     onUpdatePhysics()
@@ -78,17 +78,26 @@ abstract class BaseWallpaperEngine(protected val context: Context) : IxekenWallp
 
     private fun drawFrame() {
         val holder = currentHolder ?: return
-        if (!holder.surface.isValid) return
-        val canvas = try {
-            if (android.os.Build.VERSION.SDK_INT >= 26) holder.lockHardwareCanvas() else holder.lockCanvas()
-        } catch (e: Exception) {
-            try { holder.lockCanvas() } catch (ex: Exception) { null }
-        } ?: return
+        val surface = holder.surface
+        if (surface == null || !surface.isValid) return
+
+        var canvas: Canvas? = null
         try {
-            onDraw(canvas)
-            drawDimOverlay(canvas)
+            canvas = holder.lockCanvas()
+            if (canvas != null) {
+                onDraw(canvas)
+                drawDimOverlay(canvas)
+            }
+        } catch (e: Exception) {
+            // Ignored: surface may be invalid, locked, or resizing
         } finally {
-            holder.unlockCanvasAndPost(canvas)
+            if (canvas != null) {
+                try {
+                    holder.unlockCanvasAndPost(canvas)
+                } catch (e: Exception) {
+                    // Ignored: surface destroyed or released during draw
+                }
+            }
         }
     }
 
@@ -101,7 +110,7 @@ abstract class BaseWallpaperEngine(protected val context: Context) : IxekenWallp
         }
     }
 
-    private fun isLockScreen(): Boolean {
+    protected fun isLockScreen(): Boolean {
         if (android.os.Build.VERSION.SDK_INT >= 34) {
             val host = hostEngine
             if (host != null) {

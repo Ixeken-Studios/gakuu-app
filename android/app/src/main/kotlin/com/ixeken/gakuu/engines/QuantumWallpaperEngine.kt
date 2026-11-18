@@ -19,6 +19,11 @@ class QuantumWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
         style = Paint.Style.STROKE
     }
 
+    private val paintGlow = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.FILL
+    }
+
     private val nodes = mutableListOf<QuantumNode>()
     private val numNodes = 35
 
@@ -112,15 +117,13 @@ class QuantumWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
 
                 if (dist < 220f) {
                     val alpha = (1.0f - (dist / 220f)).coerceIn(0.0f, 1.0f)
-                    paintLine.strokeWidth = 3f * alpha
-                    
-                    val shader = LinearGradient(
-                        n1.x, n1.y, n2.x, n2.y,
-                        Color.argb((alpha * 120).toInt(), Color.red(n1.color), Color.green(n1.color), Color.blue(n1.color)),
-                        Color.argb((alpha * 120).toInt(), Color.red(n2.color), Color.green(n2.color), Color.blue(n2.color)),
-                        Shader.TileMode.CLAMP
+                    paintLine.strokeWidth = 2.5f * alpha
+                    paintLine.color = Color.argb(
+                        (alpha * 130).toInt(),
+                        Color.red(n1.color),
+                        Color.green(n1.color),
+                        Color.blue(n1.color)
                     )
-                    paintLine.shader = shader
                     canvas.drawLine(n1.x, n1.y, n2.x, n2.y, paintLine)
                 }
             }
@@ -128,20 +131,13 @@ class QuantumWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
 
         // Draw nodes
         for (n in nodes) {
-            paintNode.shader = null
+            // Draw soft outer glow aura
+            paintGlow.color = Color.argb(45, Color.red(n.color), Color.green(n.color), Color.blue(n.color))
+            canvas.drawCircle(n.x, n.y, n.radius * 2.8f, paintGlow)
+
+            // Draw core node
             paintNode.color = n.color
             canvas.drawCircle(n.x, n.y, n.radius, paintNode)
-
-            // Draw radial glow aura
-            val alphaGlowCore = Color.argb(90, Color.red(n.color), Color.green(n.color), Color.blue(n.color))
-            val glow = RadialGradient(
-                n.x, n.y, n.radius * 3.5f,
-                intArrayOf(alphaGlowCore, Color.TRANSPARENT),
-                floatArrayOf(0.0f, 1.0f),
-                Shader.TileMode.CLAMP
-            )
-            paintNode.shader = glow
-            canvas.drawCircle(n.x, n.y, n.radius * 3.5f, paintNode)
         }
     }
 

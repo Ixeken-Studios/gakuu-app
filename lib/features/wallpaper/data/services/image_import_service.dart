@@ -55,29 +55,23 @@ class ImageImportService {
     final ui.Codec codec = await ui.instantiateImageCodec(
       originalBytes,
       targetWidth: 1080,
+      allowUpscaling: false,
     );
-    final ui.FrameInfo frameInfo = await codec.getNextFrame();
-    final ui.Image resizedImage = frameInfo.image;
-
-    // 4. Convertir a formato PNG comprimido
-    final ByteData? byteData = await resizedImage.toByteData(
-      format: ui.ImageByteFormat.png,
-    );
-
-    if (byteData == null) {
-      throw const FormatException('Fallo al comprimir y codificar los bytes de la imagen.');
+    ui.Image? resizedImage;
+    try {
+      final ui.FrameInfo frameInfo = await codec.getNextFrame();
+      resizedImage = frameInfo.image;
+      final ByteData? byteData = await resizedImage.toByteData(format: ui.ImageByteFormat.png);
+      if (byteData == null) {
+        throw const FormatException('Fallo al comprimir y codificar los bytes de la imagen.');
+      }
+      final String fileName = 'wallpaper_${DateTime.now().microsecondsSinceEpoch}.png';
+      final File destinationFile = File('${targetDirectory.path}/$fileName');
+      await destinationFile.writeAsBytes(byteData.buffer.asUint8List(), flush: true);
+      return destinationFile;
+    } finally {
+      resizedImage?.dispose();
+      codec.dispose();
     }
-
-    final Uint8List compressedBytes = byteData.buffer.asUint8List();
-
-    // 5. Guardar permanentemente en el almacenamiento local de la app
-    final String fileName = 'wallpaper_${DateTime.now().microsecondsSinceEpoch}.png';
-    final File destinationFile = File('${targetDirectory.path}/$fileName');
-    await destinationFile.writeAsBytes(compressedBytes);
-
-    // Liberar recursos de la GPU
-    resizedImage.dispose();
-
-    return destinationFile;
   }
 }

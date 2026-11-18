@@ -17,6 +17,12 @@ class BokehWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
     private val lights = mutableListOf<BokehLight>()
     private val numLights = 25
 
+    private val shaderMatrix = Matrix()
+
+    companion object {
+        private const val BG_COLOR = 0xFF0A0915.toInt()
+    }
+
     override fun onCreate(holder: SurfaceHolder) {
         super.onCreate(holder)
         initLights(holder.surfaceFrame.width(), holder.surfaceFrame.height())
@@ -35,17 +41,31 @@ class BokehWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
             Color.parseColor("#FFF48FB1")  // Warm rose pink
         )
 
+        val stops = floatArrayOf(0.0f, 0.4f, 1.0f)
+
         repeat(numLights) {
+            val c = colors[Random.nextInt(colors.size)]
+            val alpha = Random.nextFloat() * 0.22f + 0.12f
+            val argbColorCore = Color.argb((alpha * 255 * 0.7f).toInt().coerceIn(0, 255), Color.red(c), Color.green(c), Color.blue(c))
+            val argbColorMid = Color.argb((alpha * 255 * 0.35f).toInt().coerceIn(0, 255), Color.red(c), Color.green(c), Color.blue(c))
+            val shader = RadialGradient(
+                0f, 0f, 1f,
+                intArrayOf(argbColorCore, argbColorMid, Color.TRANSPARENT),
+                stops,
+                Shader.TileMode.CLAMP
+            )
+
             lights.add(BokehLight(
                 x = Random.nextFloat() * w,
                 y = Random.nextFloat() * h,
                 vx = (Random.nextFloat() - 0.5f) * 0.8f,
                 vy = (Random.nextFloat() - 0.5f) * 0.8f,
                 radius = Random.nextFloat() * 140f + 90f,
-                alpha = Random.nextFloat() * 0.22f + 0.12f,
+                alpha = alpha,
                 pulseTime = Random.nextFloat() * 10f,
                 pulseSpeed = Random.nextFloat() * 0.03f + 0.015f,
-                color = colors[Random.nextInt(colors.size)]
+                color = c,
+                shader = shader
             ))
         }
     }
@@ -77,23 +97,17 @@ class BokehWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
 
     override fun onDraw(canvas: Canvas) {
         // Deep purple-black ambient color
-        canvas.drawColor(Color.parseColor("#0A0915"))
+        canvas.drawColor(BG_COLOR)
 
         for (b in lights) {
             val pulse = sin(b.pulseTime) * 0.2f + 0.8f
             val currentRadius = b.radius * pulse
 
-            // Set up radial gradient shader
-            val argbColorCore = Color.argb((b.alpha * 255 * 0.7f).toInt().coerceIn(0, 255), Color.red(b.color), Color.green(b.color), Color.blue(b.color))
-            val argbColorMid = Color.argb((b.alpha * 255 * 0.35f).toInt().coerceIn(0, 255), Color.red(b.color), Color.green(b.color), Color.blue(b.color))
-            
-            val gradient = RadialGradient(
-                b.x, b.y, currentRadius,
-                intArrayOf(argbColorCore, argbColorMid, Color.TRANSPARENT),
-                floatArrayOf(0.0f, 0.4f, 1.0f),
-                Shader.TileMode.CLAMP
-            )
-            paint.shader = gradient
+            shaderMatrix.reset()
+            shaderMatrix.postScale(currentRadius, currentRadius)
+            shaderMatrix.postTranslate(b.x, b.y)
+            b.shader.setLocalMatrix(shaderMatrix)
+            paint.shader = b.shader
 
             canvas.drawCircle(b.x, b.y, currentRadius, paint)
         }
@@ -126,6 +140,7 @@ class BokehWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
         val alpha: Float,
         var pulseTime: Float,
         val pulseSpeed: Float,
-        val color: Int
+        val color: Int,
+        val shader: RadialGradient
     )
 }

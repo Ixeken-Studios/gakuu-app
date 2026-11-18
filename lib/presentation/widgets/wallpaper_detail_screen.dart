@@ -38,7 +38,9 @@ class WallpaperDetailScreen extends StatefulWidget {
   final ValueChanged<int> onCarouselChangeIntervalChanged;
   final ValueChanged<bool> onHalfFpsEnabledChanged;
   final Function(String) onPickFiles;
+  final Function(String) onPickVideoOrGif;
   final Function(String, String) onRemoveFile;
+  final Function(String) onClearPlaylist;
   final Function(String) onApplyEngine;
   final ValueChanged<String> onTetrisStyleChanged;
 
@@ -90,7 +92,9 @@ class WallpaperDetailScreen extends StatefulWidget {
     required this.onCarouselChangeIntervalChanged,
     required this.onHalfFpsEnabledChanged,
     required this.onPickFiles,
+    required this.onPickVideoOrGif,
     required this.onRemoveFile,
+    required this.onClearPlaylist,
     required this.onApplyEngine,
     required this.onTetrisStyleChanged,
     required this.patternLayoutSize,
@@ -121,12 +125,22 @@ class _WallpaperDetailScreenState extends State<WallpaperDetailScreen> {
   late String _carouselChangeMode;
   late int _carouselChangeInterval;
 
+  late List<String> _playlistGeneral;
+  late List<String> _playlistDay;
+  late List<String> _playlistNight;
+
   // Pattern settings
   late int _patternLayoutSize;
   late List<String> _patternSlotIcons;
   late double _patternSpeed;
   late String _patternDensity;
   late bool _patternRotate;
+
+  List<String> get _combinedPlaylist => <String>{
+        ..._playlistGeneral,
+        ..._playlistDay,
+        ..._playlistNight,
+      }.toList();
 
   @override
   void initState() {
@@ -142,11 +156,71 @@ class _WallpaperDetailScreenState extends State<WallpaperDetailScreen> {
     _carouselChangeMode = widget.carouselChangeMode;
     _carouselChangeInterval = widget.carouselChangeInterval;
 
+    _playlistGeneral = List.from(widget.playlistGeneral);
+    _playlistDay = List.from(widget.playlistDay);
+    _playlistNight = List.from(widget.playlistNight);
+
     _patternLayoutSize = widget.patternLayoutSize;
     _patternSlotIcons = List.from(widget.patternSlotIcons);
     _patternSpeed = widget.patternSpeed;
     _patternDensity = widget.patternDensity;
     _patternRotate = widget.patternRotate;
+  }
+
+  Future<void> _handlePickFiles(String type) async {
+    final updated = await widget.onPickFiles(type);
+    if (mounted && updated != null) {
+      setState(() {
+        if (type == 'general') _playlistGeneral = List.from(updated);
+        if (type == 'day') _playlistDay = List.from(updated);
+        if (type == 'night') _playlistNight = List.from(updated);
+      });
+    }
+  }
+
+  Future<void> _handlePickVideoOrGif(String type) async {
+    final updated = await widget.onPickVideoOrGif(type);
+    if (mounted && updated != null) {
+      setState(() {
+        if (type == 'general') _playlistGeneral = List.from(updated);
+        if (type == 'day') _playlistDay = List.from(updated);
+        if (type == 'night') _playlistNight = List.from(updated);
+      });
+    }
+  }
+
+  Future<void> _handleRemoveFile(String type, String path) async {
+    final updated = await widget.onRemoveFile(type, path);
+    if (mounted) {
+      setState(() {
+        if (updated != null) {
+          if (type == 'general') _playlistGeneral = List.from(updated);
+          if (type == 'day') _playlistDay = List.from(updated);
+          if (type == 'night') _playlistNight = List.from(updated);
+        } else {
+          if (type == 'general') _playlistGeneral.remove(path);
+          if (type == 'day') _playlistDay.remove(path);
+          if (type == 'night') _playlistNight.remove(path);
+        }
+      });
+    }
+  }
+
+  Future<void> _handleClearPlaylist(String type) async {
+    final updated = await widget.onClearPlaylist(type);
+    if (mounted) {
+      setState(() {
+        if (type == 'all') {
+          _playlistGeneral.clear();
+          _playlistDay.clear();
+          _playlistNight.clear();
+        } else {
+          if (type == 'general') _playlistGeneral = updated != null ? List.from(updated) : [];
+          if (type == 'day') _playlistDay = updated != null ? List.from(updated) : [];
+          if (type == 'night') _playlistNight = updated != null ? List.from(updated) : [];
+        }
+      });
+    }
   }
 
   void _openFullscreenPreview() {
@@ -162,7 +236,7 @@ class _WallpaperDetailScreenState extends State<WallpaperDetailScreen> {
                 isDimEnabled: _isDimEnabled,
                 dimIntensity: _dimIntensity,
                 tetrisStyle: _tetrisStyle,
-                playlist: widget.playlist,
+                playlist: _combinedPlaylist,
                 isAnimActive: true,
                 patternLayoutSize: _patternLayoutSize,
                 patternSlotIcons: _patternSlotIcons,
@@ -308,7 +382,7 @@ class _WallpaperDetailScreenState extends State<WallpaperDetailScreen> {
         isDimEnabled: _isDimEnabled,
         dimIntensity: _dimIntensity,
         tetrisStyle: _tetrisStyle,
-        playlist: widget.playlist,
+        playlist: _combinedPlaylist,
         engines: widget.engines,
         engineDescriptions: widget.engineDescriptions,
         syncWithSystemTheme: widget.syncWithSystemTheme,
@@ -320,9 +394,9 @@ class _WallpaperDetailScreenState extends State<WallpaperDetailScreen> {
         carouselChangeMode: _carouselChangeMode,
         carouselChangeInterval: _carouselChangeInterval,
         isHalfFpsEnabled: _isHalfFpsEnabled,
-        playlistGeneral: widget.playlistGeneral,
-        playlistDay: widget.playlistDay,
-        playlistNight: widget.playlistNight,
+        playlistGeneral: _playlistGeneral,
+        playlistDay: _playlistDay,
+        playlistNight: _playlistNight,
         onDimEnabledChanged: (val) {
           setState(() => _isDimEnabled = val);
           widget.onDimEnabledChanged(val);
@@ -364,8 +438,10 @@ class _WallpaperDetailScreenState extends State<WallpaperDetailScreen> {
           setState(() => _isHalfFpsEnabled = val);
           widget.onHalfFpsEnabledChanged(val);
         },
-        onPickFiles: widget.onPickFiles,
-        onRemoveFile: widget.onRemoveFile,
+        onPickFiles: _handlePickFiles,
+        onPickVideoOrGif: _handlePickVideoOrGif,
+        onRemoveFile: _handleRemoveFile,
+        onClearPlaylist: _handleClearPlaylist,
         onApplySettings: () => widget.onApplyEngine(widget.engineId),
         onRestoreDefault: () {},
         onTetrisStyleChanged: (val) {

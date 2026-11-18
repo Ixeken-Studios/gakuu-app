@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'wallpaper_manager.dart';
 import 'l10n.dart';
@@ -13,6 +12,9 @@ import 'presentation/widgets/settings_tab.dart';
 import 'presentation/widgets/permissions_sheet.dart';
 import 'presentation/widgets/appearance_screen.dart';
 import 'presentation/widgets/wallpaper_detail_screen.dart';
+import 'presentation/widgets/media_framing_screen.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:image_picker/image_picker.dart';
 import 'services/github_update_service.dart';
 import 'dart:io';
 
@@ -332,6 +334,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _loadPersistedData() async {
     final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
     final savedMode = prefs.getString('app_theme_mode') ?? 'ixeken_light';
     final savedFontSizeIndex = prefs.getInt('app_font_size_index') ?? 4;
     setState(() {
@@ -417,36 +420,111 @@ class _HomePageState extends State<HomePage> {
     await prefs.setBool('pattern_rotate', _patternRotate);
   }
 
-  Future<void> _pickFiles(String type) async {
+  Future<List<String>?> _pickFiles(String type) async {
+    try {
+      // Photo Picker gestiona permisos y entrega copias temporales seguras. Limitar
+      // dimensiones evita introducir fotografías de decenas de megapíxeles.
+      final List<XFile> selectedImages = await ImagePicker().pickMultiImage(
+        maxWidth: 2160,
+        maxHeight: 3840,
+        imageQuality: 90,
+        requestFullMetadata: false,
+      );
+
+      if (selectedImages.isNotEmpty) {
+        final List<String> newPaths =
+            selectedImages.map((image) => image.path).toList();
+
+        final List<String> currentList;
+        if (type == 'general') {
+          currentList = List.from(_playlistGeneral)..addAll(newPaths);
+        } else if (type == 'day') {
+          currentList = List.from(_playlistDay)..addAll(newPaths);
+        } else {
+          currentList = List.from(_playlistNight)..addAll(newPaths);
+        }
+
+        final updatedPaths = await WallpaperManager.updatePlaylist(currentList, type: type);
+        if (updatedPaths != null && mounted) {
+          setState(() {
+            if (type == 'general') _playlistGeneral = updatedPaths;
+            if (type == 'day') _playlistDay = updatedPaths;
+            if (type == 'night') _playlistNight = updatedPaths;
+          });
+          await _savePersistedData();
+          return updatedPaths;
+        }
+      }
+    } on PlatformException catch (error) {
+      debugPrint('No se pudieron seleccionar imágenes: ${error.message}');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              error.message ?? 'No se pudieron agregar las imágenes seleccionadas.',
+            ),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    } catch (error) {
+      debugPrint('Error inesperado al seleccionar imágenes: $error');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ocurrió un error al abrir el selector de imágenes.'),
+            backgroundColor: Colors.redAccent,
+          ),
+        );
+      }
+    }
+    return null;
+  }
+
+  Future<List<String>?> _pickVideoOrGif(String type) async {
     if (Platform.isAndroid) {
-      await [Permission.photos].request();
+      await [Permission.videos, Permission.photos, Permission.storage].request();
     }
 
-    final ImagePicker picker = ImagePicker();
-    final List<XFile> result = await picker.pickMultiImage();
+    final FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['mp4', 'mkv', 'mov', 'gif', 'webm'],
+      allowMultiple: false,
+    );
 
-    if (result.isNotEmpty) {
-      final List<String> newPaths = result.map((file) => file.path).toList();
+    if (result != null && result.files.isNotEmpty && result.files.single.path != null) {
+      final String rawPath = result.files.single.path!;
+      
+      if (!mounted) return null;
+      final updatedPaths = await Navigator.push<List<String>>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => MediaFramingScreen(
+            filePath: rawPath,
+            targetType: type,
+          ),
+        ),
+      );
 
-      final List<String> currentList;
-      if (type == 'general') {
-        currentList = List.from(_playlistGeneral)..addAll(newPaths);
-      } else if (type == 'day') {
-        currentList = List.from(_playlistDay)..addAll(newPaths);
-      } else {
-        currentList = List.from(_playlistNight)..addAll(newPaths);
-      }
-
-      final updatedPaths = await WallpaperManager.updatePlaylist(currentList, type: type);
-      if (updatedPaths != null) {
+      if (updatedPaths != null && mounted) {
         setState(() {
           if (type == 'general') _playlistGeneral = updatedPaths;
           if (type == 'day') _playlistDay = updatedPaths;
           if (type == 'night') _playlistNight = updatedPaths;
         });
         await _savePersistedData();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Video / GIF recortado y añadido con éxito al carrusel."),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        return updatedPaths;
       }
     }
+    return null;
   }
 
   List<String> _getCombinedPlaylist() {
@@ -660,7 +738,9 @@ class _HomePageState extends State<HomePage> {
                           _savePersistedData();
                         },
                         onPickFiles: (type) => _pickFiles(type),
+                        onPickVideoOrGif: (type) => _pickVideoOrGif(type),
                         onRemoveFile: (type, path) => _removeFileFromPlaylist(type, path),
+                        onClearPlaylist: (type) => _clearPlaylist(type),
                         onApplyEngine: (id) async {
                           setState(() {
                             _selectedEngine = id;
@@ -830,9 +910,42 @@ class _HomePageState extends State<HomePage> {
                   _savePersistedData();
                 },
                 onPickFiles: (type) => _pickFiles(type),
+                onPickVideoOrGif: (type) => _pickVideoOrGif(type),
                 onRemoveFile: (type, path) => _removeFileFromPlaylist(type, path),
+                onClearPlaylist: (type) => _clearPlaylist(type),
                 onApplySettings: _applySettings,
                 onRestoreDefault: () async {
+                  final l = L10n.of(context);
+                  final shouldRestore = await showDialog<bool>(
+                    context: context,
+                    builder: (ctx) => AlertDialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+                      title: const Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: Colors.orangeAccent),
+                          SizedBox(width: 10),
+                          Expanded(child: Text('¿Desactivar fondo animado?')),
+                        ],
+                      ),
+                      content: const Text(
+                        'Se desactivará el fondo animado y se restaurará el fondo de pantalla predeterminado del sistema.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(ctx, false),
+                          child: Text(l.btnCancel),
+                        ),
+                        FilledButton(
+                          style: FilledButton.styleFrom(backgroundColor: Colors.orangeAccent),
+                          onPressed: () => Navigator.pop(ctx, true),
+                          child: const Text('Desactivar'),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (shouldRestore != true) return;
+
                   final bool success = await WallpaperManager.clearWallpaper();
                   if (success && context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -1048,7 +1161,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Future<void> _removeFileFromPlaylist(String type, String path) async {
+  Future<List<String>?> _removeFileFromPlaylist(String type, String path) async {
     final List<String> currentList;
     if (type == 'general') {
       currentList = List.from(_playlistGeneral)..remove(path);
@@ -1059,10 +1172,11 @@ class _HomePageState extends State<HomePage> {
     }
 
     final updatedPaths = await WallpaperManager.updatePlaylist(currentList, type: type);
+    final result = updatedPaths ?? currentList;
     setState(() {
-      if (type == 'general') _playlistGeneral = updatedPaths ?? currentList;
-      if (type == 'day') _playlistDay = updatedPaths ?? currentList;
-      if (type == 'night') _playlistNight = updatedPaths ?? currentList;
+      if (type == 'general') _playlistGeneral = result;
+      if (type == 'day') _playlistDay = result;
+      if (type == 'night') _playlistNight = result;
     });
     await _savePersistedData();
 
@@ -1084,6 +1198,50 @@ class _HomePageState extends State<HomePage> {
         isHalfFpsEnabled: _isHalfFpsEnabled,
       );
     }
+    return result;
+  }
+
+  Future<List<String>?> _clearPlaylist(String type) async {
+    if (type == 'all') {
+      await WallpaperManager.updatePlaylist([], type: 'general');
+      await WallpaperManager.updatePlaylist([], type: 'day');
+      final updatedPaths = await WallpaperManager.updatePlaylist([], type: 'night');
+      final result = updatedPaths ?? <String>[];
+      setState(() {
+        _playlistGeneral = [];
+        _playlistDay = [];
+        _playlistNight = [];
+      });
+      await _savePersistedData();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(L10n.of(context).playlistEmptyMsg),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+      return result;
+    }
+
+    final updatedPaths = await WallpaperManager.updatePlaylist([], type: type);
+    final result = updatedPaths ?? <String>[];
+    setState(() {
+      if (type == 'general') _playlistGeneral = result;
+      if (type == 'day') _playlistDay = result;
+      if (type == 'night') _playlistNight = result;
+    });
+    await _savePersistedData();
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(L10n.of(context).playlistEmptyMsg),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+    return result;
   }
 
 

@@ -179,6 +179,10 @@ class L10n {
           'Modo de 30 FPS y reducción automática de consumo con el ahorro de batería de Android.',
       'btn_apply_wallpaper': 'Aplicar fondo',
       'btn_clear': 'Limpiar',
+      'btn_clear_all': 'Limpiar todas',
+      'dialog_clear_playlist_title': '¿Vaciar lista de imágenes?',
+      'dialog_clear_playlist_msg': 'Se eliminarán todas las fotos y videos de esta lista. Esta acción no se puede deshacer.',
+      'playlist_empty_msg': 'Lista de imágenes vaciada',
       'btn_preview': 'Vista previa',
 
       // Engine Names
@@ -394,6 +398,10 @@ class L10n {
           '30 FPS limit toggle and smart battery saver integration to preserve power.',
       'btn_apply_wallpaper': 'Apply wallpaper',
       'btn_clear': 'Clear',
+      'btn_clear_all': 'Clear all',
+      'dialog_clear_playlist_title': 'Clear playlist images?',
+      'dialog_clear_playlist_msg': 'All photos and videos will be removed from this list. This action cannot be undone.',
+      'playlist_empty_msg': 'Image playlist cleared',
       'btn_preview': 'Preview',
 
       // Engine Names
@@ -592,6 +600,10 @@ class L10n {
   String get tabSubOptions => get('tab_sub_options');
   String get btnApplyWallpaper => get('btn_apply_wallpaper');
   String get btnClear => get('btn_clear');
+  String get btnClearAll => get('btn_clear_all');
+  String get dialogClearPlaylistTitle => get('dialog_clear_playlist_title');
+  String get dialogClearPlaylistMsg => get('dialog_clear_playlist_msg');
+  String get playlistEmptyMsg => get('playlist_empty_msg');
   String get btnPreview => get('btn_preview');
 
   // Changelog Highlights v1.2.0

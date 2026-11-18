@@ -40,7 +40,9 @@ class CustomizerTab extends StatefulWidget {
   final ValueChanged<int> onCarouselChangeIntervalChanged;
   final ValueChanged<bool> onHalfFpsEnabledChanged;
   final Function(String) onPickFiles;
+  final Function(String) onPickVideoOrGif;
   final Function(String, String) onRemoveFile;
+  final Function(String) onClearPlaylist;
   final VoidCallback onApplySettings;
   final VoidCallback onRestoreDefault;
   final ValueChanged<String> onTetrisStyleChanged;
@@ -95,7 +97,9 @@ class CustomizerTab extends StatefulWidget {
     required this.onCarouselChangeIntervalChanged,
     required this.onHalfFpsEnabledChanged,
     required this.onPickFiles,
+    required this.onPickVideoOrGif,
     required this.onRemoveFile,
+    required this.onClearPlaylist,
     required this.onApplySettings,
     required this.onRestoreDefault,
     required this.onTetrisStyleChanged,
@@ -120,17 +124,9 @@ class _CustomizerTabState extends State<CustomizerTab> {
   String _activeSubTab = 'gallery'; // 'gallery' or 'options'
   String _activePlaylistType = 'general'; // 'general', 'day', 'night'
   List<String> get _currentSubPlaylist {
-    if (widget.syncWithSystemTheme) {
-      if (_activePlaylistType == 'night') return widget.playlistNight;
-      if (_activePlaylistType == 'day') return widget.playlistDay;
-      return widget.playlistGeneral;
-    } else if (widget.useDayNightMode) {
-      if (_activePlaylistType == 'day') return widget.playlistDay;
-      if (_activePlaylistType == 'night') return widget.playlistNight;
-      return widget.playlistGeneral;
-    } else {
-      return widget.playlistGeneral;
-    }
+    if (_activePlaylistType == 'day') return widget.playlistDay;
+    if (_activePlaylistType == 'night') return widget.playlistNight;
+    return widget.playlistGeneral;
   }
 
   void _openFullScreenPreview(BuildContext context) {
@@ -251,28 +247,63 @@ class _CustomizerTabState extends State<CustomizerTab> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // Clear Wallpaper button (Reddish accent)
+                    // Clear Wallpaper / Reset Settings button
                     GestureDetector(
-                      onTap: widget.onRestoreDefault,
+                      onTap: () {
+                        if (widget.selectedEngine == 'carousel') {
+                          final totalCount = widget.playlistGeneral.length +
+                              widget.playlistDay.length +
+                              widget.playlistNight.length;
+                          if (totalCount > 0) {
+                            _confirmClearPlaylist(
+                                context, _activePlaylistType, _currentSubPlaylist.length);
+                          } else {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(l.playlistEmptyMsg),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        } else {
+                          _confirmResetEngineSettings(context);
+                        }
+                      },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                         decoration: BoxDecoration(
-                          color: Colors.redAccent.withValues(alpha: 0.15),
+                          color: widget.selectedEngine == 'carousel'
+                              ? Colors.redAccent.withValues(alpha: 0.15)
+                              : Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(20),
                           border: Border.all(
-                            color: Colors.redAccent.withValues(alpha: 0.3),
+                            color: widget.selectedEngine == 'carousel'
+                                ? Colors.redAccent.withValues(alpha: 0.3)
+                                : Theme.of(context).colorScheme.primary.withValues(alpha: 0.25),
                             width: 1,
                           ),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.delete_outline, color: Colors.redAccent, size: 16),
+                            Icon(
+                              widget.selectedEngine == 'carousel'
+                                  ? Icons.delete_outline
+                                  : Icons.restart_alt_rounded,
+                              color: widget.selectedEngine == 'carousel'
+                                  ? Colors.redAccent
+                                  : Theme.of(context).colorScheme.primary,
+                              size: 16,
+                            ),
                             const SizedBox(width: 6),
                             Text(
-                              l.btnClear,
+                              widget.selectedEngine == 'carousel'
+                                  ? l.btnClear
+                                  : 'Restablecer',
                               style: TextStyle(
-                                color: Colors.redAccent,
+                                color: widget.selectedEngine == 'carousel'
+                                    ? Colors.redAccent
+                                    : Theme.of(context).colorScheme.primary,
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
@@ -643,7 +674,100 @@ class _CustomizerTabState extends State<CustomizerTab> {
     );
   }
 
+  void _confirmResetEngineSettings(BuildContext context) {
+    final l = L10n.of(context);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            Icon(Icons.restart_alt_rounded, color: Theme.of(context).colorScheme.primary),
+            const SizedBox(width: 10),
+            const Expanded(child: Text('Restablecer ajustes')),
+          ],
+        ),
+        content: const Text(
+          '¿Deseas restaurar los valores predeterminados de este fondo animado?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l.btnCancel),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              widget.onDimEnabledChanged(false);
+              widget.onDimIntensityChanged(0.35);
+              widget.onHalfFpsEnabledChanged(false);
+              widget.onParallaxEnabledChanged(false);
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Ajustes restablecidos correctamente'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            },
+            child: const Text('Restablecer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _confirmClearPlaylist(BuildContext context, String type, int count) {
+    final l = L10n.of(context);
+    final totalCount = widget.playlistGeneral.length +
+        widget.playlistDay.length +
+        widget.playlistNight.length;
+    final isMultiMode = widget.useDayNightMode || widget.syncWithSystemTheme;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: Row(
+          children: [
+            const Icon(Icons.delete_sweep_rounded, color: Colors.redAccent),
+            const SizedBox(width: 10),
+            Expanded(child: Text(l.dialogClearPlaylistTitle)),
+          ],
+        ),
+        content: Text(
+          isMultiMode && totalCount > count
+              ? '¿Deseas vaciar la lista actual ($count archivos) o vaciar todas las listas ($totalCount archivos)?'
+              : l.dialogClearPlaylistMsg,
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(l.btnCancel),
+          ),
+          if (isMultiMode && totalCount > count) ...[
+            TextButton(
+              onPressed: () {
+                Navigator.pop(ctx);
+                widget.onClearPlaylist('all');
+              },
+              child: const Text('Vaciar todo', style: TextStyle(color: Colors.redAccent)),
+            ),
+          ],
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () {
+              Navigator.pop(ctx);
+              widget.onClearPlaylist(count > 0 ? type : 'all');
+            },
+            child: Text(isMultiMode && count > 0 ? 'Vaciar actual' : l.btnClearAll),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildGridPlaylistEditor(BuildContext context) {
+    final l = L10n.of(context);
     final List<String> currentList;
     if (_activePlaylistType == 'day') {
       currentList = widget.playlistDay;
@@ -653,103 +777,314 @@ class _CustomizerTabState extends State<CustomizerTab> {
       currentList = widget.playlistGeneral;
     }
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
-        childAspectRatio: 0.65,
-      ),
-      itemCount: currentList.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          // First slot: Add image button card
-          return GestureDetector(
-            onTap: () => widget.onPickFiles(_activePlaylistType),
-            child: Container(
-              decoration: BoxDecoration(
-                color: Theme.of(context).cardColor,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Center(
-                child: Icon(
-                  Icons.add,
-                  size: 32,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-              ),
-            ),
-          );
-        }
+    final bool hasItems = currentList.isNotEmpty;
+    final int actionSlots = hasItems ? 3 : 2;
 
-        final path = currentList[index - 1];
-        final isVideo = path.endsWith('.mp4') || path.endsWith('.mkv');
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Stack(
-            clipBehavior: Clip.none,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 4),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(24),
+              Text(
+                '${currentList.length} ${currentList.length == 1 ? "archivo" : "archivos"}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
-                clipBehavior: Clip.antiAlias,
-                child: Image.file(
-                  File(path),
-                  fit: BoxFit.cover,
-                  width: double.infinity,
-                  height: double.infinity,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Theme.of(context).cardColor,
-                      child: Center(
-                        child: Icon(
-                          isVideo ? Icons.videocam : Icons.image_not_supported_outlined,
-                          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
-                          size: 24,
+              ),
+              if (hasItems)
+                TextButton.icon(
+                  onPressed: () => _confirmClearPlaylist(context, _activePlaylistType, currentList.length),
+                  icon: const Icon(Icons.delete_sweep_rounded, size: 18, color: Colors.redAccent),
+                  label: Text(
+                    l.btnClearAll,
+                    style: const TextStyle(
+                      color: Colors.redAccent,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    backgroundColor: Colors.redAccent.withValues(alpha: 0.12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 0.65,
+          ),
+          itemCount: currentList.length + actionSlots,
+          itemBuilder: (context, index) {
+            if (index == 0) {
+              // First slot: Add multiple photos
+              return GestureDetector(
+                onTap: () => widget.onPickFiles(_activePlaylistType),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.25),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.add_photo_alternate_rounded,
+                        size: 28,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Fotos",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: -10,
-                child: Center(
-                  child: GestureDetector(
-                    onTap: () => widget.onRemoveFile(_activePlaylistType, path),
-                    child: Container(
-                      width: 28,
-                      height: 28,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black26,
-                            blurRadius: 4,
-                            offset: Offset(0, 2),
-                          ),
-                        ],
+                      const SizedBox(height: 2),
+                      Text(
+                        "Múltiples",
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
                       ),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.black,
-                        size: 16,
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            if (index == 1) {
+              // Second slot: Add single video / GIF with framing
+              return GestureDetector(
+                onTap: () => widget.onPickVideoOrGif(_activePlaylistType),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.amber.shade700.withValues(alpha: 0.35),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.video_library_rounded,
+                        size: 28,
+                        color: Colors.amber.shade700,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Video / GIF",
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.amber.shade800,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "Con encuadre",
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            if (hasItems && index == 2) {
+              // Third slot: Clear / Empty entire playlist
+              return GestureDetector(
+                onTap: () => _confirmClearPlaylist(context, _activePlaylistType, currentList.length),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).cardColor,
+                    borderRadius: BorderRadius.circular(24),
+                    border: Border.all(
+                      color: Colors.redAccent.withValues(alpha: 0.35),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: Colors.redAccent.withValues(alpha: 0.12),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.delete_sweep_rounded,
+                          size: 24,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        l.btnClear,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.redAccent,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        "Vaciar lista",
+                        style: TextStyle(
+                          fontSize: 9,
+                          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            final path = currentList[index - actionSlots];
+            final isVideo = path.endsWith('.mp4') ||
+                path.endsWith('.mkv') ||
+                path.endsWith('.mov') ||
+                path.endsWith('.webm');
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: [
+                  Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.file(
+                      File(path),
+                      fit: BoxFit.cover,
+                      width: double.infinity,
+                      height: double.infinity,
+                      cacheWidth: 512,
+                      cacheHeight: 512,
+                      errorBuilder: (context, error, stackTrace) {
+                        return Container(
+                          color: Theme.of(context).cardColor,
+                          child: Center(
+                            child: Icon(
+                              isVideo ? Icons.videocam : Icons.image_not_supported_outlined,
+                              color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
+                              size: 24,
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                  Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 6,
+                    child: Center(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          HapticFeedback.lightImpact();
+                          widget.onRemoveFile(_activePlaylistType, path);
+                        },
+                        child: Container(
+                          width: 28,
+                          height: 28,
+                          decoration: const BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black26,
+                                blurRadius: 4,
+                                offset: Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: const Icon(
+                            Icons.close,
+                            color: Colors.black,
+                            size: 16,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
+                ],
               ),
-            ],
+            );
+          },
+        ),
+        if (!hasItems) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+            decoration: BoxDecoration(
+              color: Theme.of(context).cardColor.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
+              ),
+            ),
+            child: Column(
+              children: [
+                Icon(
+                  Icons.photo_library_outlined,
+                  size: 36,
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.4),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  l.playlistEmptyMsg,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  "Usa los botones superiores para añadir fotos o videos.",
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+                  ),
+                ),
+              ],
+            ),
           ),
-        );
-      },
+        ],
+      ],
     );
   }
 
@@ -1428,6 +1763,8 @@ class _CustomizerTabState extends State<CustomizerTab> {
           width: 52,
           height: 52,
           fit: BoxFit.cover,
+          cacheWidth: 128,
+          cacheHeight: 128,
           errorBuilder: (context, error, stackTrace) => const Icon(Icons.image_not_supported_outlined, size: 28),
         ),
       );

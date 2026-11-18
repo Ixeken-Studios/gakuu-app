@@ -13,7 +13,15 @@ import kotlin.random.Random
 
 class FluidSwarmWallpaperEngine(context: Context) : BaseWallpaperEngine(context) {
     
-    private val paint = Paint().apply { isAntiAlias = true }
+    private val trailPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.STROKE
+        strokeCap = Paint.Cap.ROUND
+    }
+    private val headPaint = Paint().apply {
+        isAntiAlias = true
+        style = Paint.Style.FILL
+    }
     private val particles = mutableListOf<FluidParticle>()
     private val numParticles = 140
     private var time = 0f
@@ -21,6 +29,10 @@ class FluidSwarmWallpaperEngine(context: Context) : BaseWallpaperEngine(context)
     private var isTouching = false
     private var touchX = 0f
     private var touchY = 0f
+
+    companion object {
+        private const val BG_COLOR = 0xFF06050F.toInt()
+    }
 
     override fun onCreate(holder: SurfaceHolder) {
         super.onCreate(holder)
@@ -105,22 +117,20 @@ class FluidSwarmWallpaperEngine(context: Context) : BaseWallpaperEngine(context)
 
     override fun onDraw(canvas: Canvas) {
         // Espacio negro/azul oscuro
-        canvas.drawColor(Color.parseColor("#06050F"))
+        canvas.drawColor(BG_COLOR)
         
-        // Dibujar rastro y partículas
+        // Dibujar rastro y partículas sin paint.reset()
         for (p in particles) {
             // Rastro fluido
-            paint.reset()
-            paint.isAntiAlias = true
-            paint.color = p.color
-            paint.strokeWidth = p.radius * 0.9f
-            paint.alpha = 130
-            canvas.drawLine(p.px, p.py, p.x, p.y, paint)
+            trailPaint.color = p.color
+            trailPaint.strokeWidth = p.radius * 0.9f
+            trailPaint.alpha = 130
+            canvas.drawLine(p.px, p.py, p.x, p.y, trailPaint)
             
             // Cabeza brillante de la partícula
-            paint.alpha = 240
-            paint.style = Paint.Style.FILL
-            canvas.drawCircle(p.x, p.y, p.radius, paint)
+            headPaint.color = p.color
+            headPaint.alpha = 240
+            canvas.drawCircle(p.x, p.y, p.radius, headPaint)
         }
     }
 
